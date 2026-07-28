@@ -1,0 +1,1104 @@
+
+
+<!DOCTYPE html>
+  <html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🔓 项目加密调试工具</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.2.0/crypto-js.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jsencrypt/3.3.2/jsencrypt.min.js"></script>
+    <script type="importmap">
+    {
+      "imports": {
+        "sm-crypto": "https://esm.sh/sm-crypto@0.4.0"
+      }
+    }
+    </script>
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        background: #0f172a;
+        color: #e2e8f0;
+        min-height: 100vh;
+        padding: 20px;
+      }
+      .container { max-width: 1200px; margin: 0 auto; }
+      h1 {
+        text-align: center;
+        margin-bottom: 10px;
+        background: linear-gradient(90deg, #60a5fa, #a78bfa);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        font-size: 2rem;
+      }
+      .subtitle {
+        text-align: center;
+        color: #94a3b8;
+        margin-bottom: 30px;
+        font-size: 0.9rem;
+      }
+      .tabs {
+        display: flex;
+        gap: 4px;
+        margin-bottom: 20px;
+        background: #1e293b;
+        padding: 4px;
+        border-radius: 12px;
+        overflow-x: auto;
+      }
+      .tab {
+        flex: 1;
+        min-width: 120px;
+        padding: 10px 16px;
+        border: none;
+        background: transparent;
+        color: #94a3b8;
+        cursor: pointer;
+        border-radius: 8px;
+        font-size: 0.9rem;
+        transition: all 0.2s;
+        white-space: nowrap;
+      }
+      .tab:hover { color: #e2e8f0; }
+      .tab.active {
+        background: #3b82f6;
+        color: #fff;
+        font-weight: 500;
+      }
+      .panel { display: none; animation: fadeIn 0.3s; }
+      .panel.active { display: block; }
+      @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+      .card {
+        background: #1e293b;
+        border: 1px solid #334155;
+        border-radius: 12px;
+        padding: 24px;
+        margin-bottom: 20px;
+      }
+      .card-title {
+        font-size: 1.1rem;
+        font-weight: 600;
+        margin-bottom: 16px;
+        color: #60a5fa;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .form-group { margin-bottom: 16px; }
+      label {
+        display: block;
+        margin-bottom: 6px;
+        font-size: 0.85rem;
+        color: #94a3b8;
+        font-weight: 500;
+      }
+      textarea, input, select {
+        width: 100%;
+        padding: 10px 12px;
+        border: 1px solid #334155;
+        border-radius: 8px;
+        background: #0f172a;
+        color: #e2e8f0;
+        font-family: 'Consolas', 'Monaco', monospace;
+        font-size: 0.85rem;
+        transition: border-color 0.2s;
+      }
+      textarea { min-height: 120px; resize: vertical; }
+      textarea:focus, input:focus, select:focus {
+        outline: none;
+        border-color: #3b82f6;
+      }
+      .btn {
+        padding: 10px 24px;
+        border: none;
+        border-radius: 8px;
+        cursor: pointer;
+        font-size: 0.9rem;
+        font-weight: 500;
+        transition: all 0.2s;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+      }
+      .btn-primary {
+        background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+        color: #fff;
+      }
+      .btn-primary:hover { opacity: 0.9; transform: translateY(-1px); }
+      .btn-secondary {
+        background: #334155;
+        color: #e2e8f0;
+        margin-left: 8px;
+      }
+      .btn-secondary:hover { background: #475569; }
+      .result {
+        margin-top: 16px;
+        padding: 16px;
+        background: #0f172a;
+        border: 1px solid #334155;
+        border-radius: 8px;
+        min-height: 100px;
+        font-family: 'Consolas', 'Monaco', monospace;
+        font-size: 0.85rem;
+        white-space: pre-wrap;
+        word-break: break-all;
+        overflow-x: auto;
+      }
+      .result.success { border-color: #10b981; background: rgba(16, 185, 129, 0.05); }
+      .result.error { border-color: #ef4444; background: rgba(239, 68, 68, 0.05); }
+      .hint {
+        font-size: 0.8rem;
+        color: #64748b;
+        margin-top: 4px;
+      }
+      .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+      @media (max-width: 768px) { .grid-2 { grid-template-columns: 1fr; } }
+      .key-badge {
+        display: inline-block;
+        background: #334155;
+        padding: 2px 8px;
+        border-radius: 4px;
+        font-size: 0.8rem;
+        color: #60a5fa;
+        cursor: pointer;
+        transition: background 0.2s;
+      }
+      .key-badge:hover { background: #475569; }
+      .copy-btn {
+        position: absolute;
+        top: 8px;
+        right: 8px;
+        padding: 4px 10px;
+        font-size: 0.75rem;
+        background: #334155;
+        border: none;
+        border-radius: 4px;
+        color: #e2e8f0;
+        cursor: pointer;
+      }
+      .copy-btn:hover { background: #475569; }
+      .result-wrapper { position: relative; }
+      .checkbox-group {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 12px;
+      }
+      .checkbox-group input { width: auto; }
+      .tabs-wrapper { position: relative; }
+      .sm2-hint {
+        background: rgba(59, 130, 246, 0.1);
+        border-left: 3px solid #3b82f6;
+        padding: 12px 16px;
+        border-radius: 0 8px 8px 0;
+        margin-bottom: 16px;
+        font-size: 0.85rem;
+        color: #93c5fd;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h1>🔓 项目加密调试工具</h1>
+      <p class="subtitle">支持 AES / RSA / SM2 / SM4 / SM2+SM4混合解密</p>
+
+      <div class="tabs-wrapper">
+        <div class="tabs">
+          <button class="tab active" data-tab="aes">AES (CryptoJS)</button>
+          <button class="tab" data-tab="rsa">RSA (JSEncrypt)</button>
+          <button class="tab" data-tab="sm2">SM2 国密</button>
+          <button class="tab" data-tab="sm4">SM4 国密</button>
+          <button class="tab" data-tab="hybrid">SM2+SM4 混合</button>
+          <button class="tab" data-tab="utils">通用工具</button>
+        </div>
+      </div>
+
+      <!-- AES 面板 -->
+      <div class="panel active" id="panel-aes">
+        <div class="card">
+          <div class="card-title">🔑 AES 解密 (CBC/PKCS7)</div>
+          <div class="form-group">
+            <label>密文 (Base64，含IV前缀) <span class="key-badge" 
+  onclick="fillExample('aes-cipher')">填入示例</span></label>
+            <textarea id="aes-cipher" placeholder="粘贴Base64密文..."></textarea>
+            <p class="hint">项目加密逻辑：IV(16字节) + 密文 → Base64编码</p>
+          </div>
+          <div class="form-group">
+            <label>密钥 (Hex/Utf8)</label>
+            <input type="text" id="aes-key" value="ASDKF32ERDSKFJAk" placeholder="密钥">
+            <p class="hint">项目默认密钥：ASDKF32ERDSKFJAk (SECRET前16位)</p>
+          </div>
+          <div class="form-group">
+            <label>编码方式</label>
+            <select id="aes-key-type">
+              <option value="utf8">UTF-8 (项目默认)</option>
+              <option value="hex">Hex</option>
+            </select>
+          </div>
+          <button class="btn btn-primary" onclick="decryptAES()">🔓 AES 解密</button>
+          <button class="btn btn-secondary" onclick="encryptAES()"> AES 加密</button>
+          <div class="result-wrapper">
+            <div id="aes-result" class="result">结果将显示在这里...</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- RSA 面板 -->
+      <div class="panel" id="panel-rsa">
+        <div class="card">
+          <div class="card-title">🔑 RSA 解密 (JSEncrypt)</div>
+          <div class="form-group">
+            <label>密文 (Base64)</label>
+            <textarea id="rsa-cipher" placeholder="粘贴RSA加密后的Base64密文..."></textarea>
+          </div>
+          <div class="form-group">
+            <label>私钥 (PKCS#1)</label>
+            <textarea id="rsa-private-key" style="min-height:200px;" placeholder="粘贴PKCS#1格式私钥..."></textarea>
+            <p class="hint">预填了项目中的硬编码私钥，可修改</p>
+          </div>
+          <button class="btn btn-primary" onclick="decryptRSA()"> RSA 解密</button>
+          <button class="btn btn-secondary" onclick="encryptRSA()">🔒 RSA 加密</button>
+          <div class="result-wrapper">
+            <div id="rsa-result" class="result">结果将显示在这里...</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- SM2 面板 -->
+      <div class="panel" id="panel-sm2">
+        <div class="card">
+          <div class="card-title">🇳 SM2 加解密</div>
+          <div class="sm2-hint">
+            💡 项目中的 SM2 密钥从 Cookie 读取（sm2-backend-public-key / sm2-frontend-private-key）
+            <br>04 前缀规则：加密时自动补 04，解密时自动去 04
+          </div>
+          <div class="form-group">
+            <label>明文/密文 (Hex，可选 04 前缀)</label>
+            <textarea id="sm2-cipher" placeholder="输入明文或粘贴SM2密文..."></textarea>
+          </div>
+          <div class="grid-2">
+            <div class="form-group">
+              <label>公钥 (Hex，加密用，04开头130字符)</label>
+              <input type="text" id="sm2-public-key" placeholder="粘贴SM2公钥...">
+            </div>
+            <div class="form-group">
+              <label>私钥 (Hex，解密用，64字符)</label>
+              <input type="text" id="sm2-private-key" placeholder="粘贴SM2私钥...">
+            </div>
+          </div>
+          <div style="margin-bottom: 16px;">
+            <button class="btn btn-primary" onclick="encryptSM2()">🔒 SM2 加密</button>
+            <button class="btn btn-secondary" onclick="decryptSM2()">🔓 SM2 解密</button>
+          </div>
+          <div class="result-wrapper">
+            <div id="sm2-result" class="result">结果将显示在这里...</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- SM4 面板 -->
+      <div class="panel" id="panel-sm4">
+        <div class="card">
+          <div class="card-title">🇨🇳 SM4 解密 (ECB/PKCS5)</div>
+          <div class="form-group">
+            <label>密文 (Hex)</label>
+            <textarea id="sm4-cipher" placeholder="粘贴SM4密文..."></textarea>
+          </div>
+          <div class="form-group">
+            <label>密钥 (Hex，16字节)</label>
+            <input type="text" id="sm4-key" placeholder="例如: 0123456789abedef0123456789abedef">
+          </div>
+          <button class="btn btn-primary" onclick="decryptSM4()">🔓 SM4 解密</button>
+          <button class="btn btn-secondary" onclick="encryptSM4()"> SM4 加密</button>
+          <div class="result-wrapper">
+            <div id="sm4-result" class="result">结果将显示在这里...</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- SM2+SM4 混合面板 -->
+      <div class="panel" id="panel-hybrid">
+        <div class="card">
+          <div class="card-title">🇨🇳 SM2 + SM4 混合加密/解密</div>
+          <div class="sm2-hint">
+             用于加解密项目中 <code>encryptRequest</code> / <code>decryptResponse</code> 格式的数据
+          </div>
+
+          <!-- 加密区域 -->
+          <div class="card" style="margin-bottom: 20px; border: 1px solid #3b82f6;">
+            <div class="card-title">🔒 混合加密（请求体加密）</div>
+            <div class="form-group">
+              <label>业务数据 (JSON/Object)</label>
+              <textarea id="hybrid-encrypt-data" style="min-height:100px;" placeholder='{"username":"test","password":"123456"}'></textarea>
+              <p class="hint">任意对象或JSON字符串，将被SM4加密，SM2加密SM4密钥</p>
+            </div>
+            <div class="grid-2">
+              <div class="form-group">
+                <label>后端公钥 (加密用)</label>
+                <input type="text" id="hybrid-encrypt-backend-pubkey" placeholder="04开头的后端SM2公钥">
+              </div>
+              <div class="form-group">
+                <label>前端私钥 (签名用)</label>
+                <input type="text" id="hybrid-encrypt-frontend-prikey" placeholder="前端SM2私钥">
+              </div>
+            </div>
+            <button class="btn btn-primary" onclick="encryptHybrid()">🔒 混合加密</button>
+            <div class="result-wrapper">
+              <div id="hybrid-encrypt-result" class="result">加密结果将显示在这里...</div>
+            </div>
+          </div>
+
+          <!-- 解密区域 -->
+          <div class="card" style="border: 1px solid #10b981;">
+            <div class="card-title">🔓 混合解密（响应体解密）</div>
+            <div class="form-group">
+              <label>加密响应体 (JSON) <span class="key-badge" onclick="fillExample('hybrid-json')">填入示例</span></label>
+              <textarea id="hybrid-json" style="min-height:100px;"
+  placeholder='{"time":"...","data":"...","sm4Key":"...","sign":"..."}'></textarea>
+              <p class="hint">包含 time, data, sm4Key(可选), sign 字段的JSON对象</p>
+            </div>
+            <div class="grid-2">
+              <div class="form-group">
+                <label>前端私钥 (解密用)</label>
+                <input type="text" id="hybrid-private-key" placeholder="前端SM2私钥">
+              </div>
+              <div class="form-group">
+                <label>后端公钥 (验签用)</label>
+                <input type="text" id="hybrid-public-key" placeholder="后端SM2公钥">
+              </div>
+            </div>
+            <div class="checkbox-group">
+              <input type="checkbox" id="hybrid-verify" checked>
+              <label for="hybrid-verify" style="margin:0;">验签</label>
+            </div>
+            <button class="btn btn-primary" onclick="decryptHybrid()">🔓 混合解密</button>
+            <div class="result-wrapper">
+              <div id="hybrid-result" class="result">解密结果将显示在这里...</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 通用工具面板 -->
+      <div class="panel" id="panel-utils">
+        <div class="card">
+          <div class="card-title"> 通用编解码工具</div>
+          <div class="form-group">
+            <label>输入</label>
+            <textarea id="util-input" style="min-height:80px;" placeholder="输入要处理的内容..."></textarea>
+          </div>
+          <div style="margin-bottom:16px;">
+            <button class="btn btn-primary" onclick="utilBase64Encode()">Base64 编码</button>
+            <button class="btn btn-secondary" onclick="utilBase64Decode()">Base64 解码</button>
+            <button class="btn btn-secondary" onclick="utilURLEncode()">URL 编码</button>
+            <button class="btn btn-secondary" onclick="utilURLDecode()">URL 解码</button>
+            <button class="btn btn-secondary" onclick="utilHexEncode()">Hex 编码</button>
+            <button class="btn btn-secondary" onclick="utilHexDecode()">Hex 解码</button>
+            <button class="btn btn-secondary" onclick="utilJsonFormat()">JSON 格式化</button>
+            <button class="btn btn-secondary" onclick="utilJsonMinify()">JSON 压缩</button>
+          </div>
+          <div class="result-wrapper">
+            <div id="util-result" class="result">结果将显示在这里...</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      // ========== Tab 切换 ==========
+      document.querySelectorAll('.tab').forEach(tab => {
+        tab.addEventListener('click', () => {
+          document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+          document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+          tab.classList.add('active');
+          document.getElementById('panel-' + tab.dataset.tab).classList.add('active');
+        });
+      });
+
+      // ========== 工具函数 ==========
+      function showResult(id, text, isError) {
+        const el = document.getElementById(id);
+        el.textContent = text;
+        el.className = 'result ' + (isError ? 'error' : 'success');
+      }
+
+      function fillExample(id) {
+        const examples = {
+          'aes-cipher': '请粘贴项目中通过 crypto.js 加密后的 Base64 密文',
+          'hybrid-json': JSON.stringify({
+            "time": "2024-01-15 09:30:25",
+            "data": "d4f5e6a7b8c9d0e1f2031425364758690a1b2c3d4e5f60718293a4b5c6d7e8f9",
+            "sm4Key": "04a1b2c3d4e5f60718293a4b5c6d7e8f90123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123",
+            "sign": "3045022100a1b2c3d4e5f60718293a4b5c6d7e8f90123456789abcdef0123456789abcdef022100fedcba9876543210fedcba9876543210fedcba9876543210fedcba987654"
+          }, null, 2)
+        };
+        document.getElementById(id).value = examples[id];
+      }
+
+      // ========== AES ==========
+      function getAESKey(keyStr, type) {
+        if (type === 'hex') return CryptoJS.enc.Hex.parse(keyStr);
+        return CryptoJS.enc.Utf8.parse(keyStr);
+      }
+
+      window.decryptAES = function() {
+        try {
+          const cipher = document.getElementById('aes-cipher').value.trim();
+          if (!cipher) return showResult('aes-result', '请输入密文', true);
+          const keyStr = document.getElementById('aes-key').value;
+          const keyType = document.getElementById('aes-key-type').value;
+          const key = getAESKey(keyStr, keyType);
+
+          // 项目逻辑：Base64 → 提取IV(16字节/4 words) + 密文
+          const all = CryptoJS.enc.Base64.parse(cipher);
+          if (all.sigBytes < 16) return showResult('aes-result', '密文太短，无法提取IV', true);
+
+          const iv = CryptoJS.lib.WordArray.create(all.words.slice(0, 4), 16);
+          const ct = CryptoJS.lib.WordArray.create(all.words.slice(4), all.sigBytes - 16);
+
+          const decrypted = CryptoJS.AES.decrypt({ ciphertext: ct }, key, {
+            iv: iv,
+            mode: CryptoJS.mode.CBC,
+            padding: CryptoJS.pad.Pkcs7,
+          });
+
+          const plain = CryptoJS.enc.Utf8.stringify(decrypted);
+          showResult('aes-result', plain || '(解密结果为空，可能密钥不正确)');
+        } catch (e) {
+          showResult('aes-result', 'AES解密失败: ' + e.message, true);
+        }
+      };
+
+      window.encryptAES = function() {
+        try {
+          const plain = document.getElementById('aes-cipher').value.trim();
+          const keyStr = document.getElementById('aes-key').value;
+          const keyType = document.getElementById('aes-key-type').value;
+          const key = getAESKey(keyStr, keyType);
+
+          // 项目bug：IV生成函数 randomIV 实际生成全0
+          const iv = CryptoJS.lib.WordArray.create([0,0,0,0], 16);
+
+          const encrypted = CryptoJS.AES.encrypt(CryptoJS.enc.Utf8.parse(plain), key, {
+            iv: iv,
+            mode: CryptoJS.mode.CBC,
+            padding: CryptoJS.pad.Pkcs7,
+          });
+
+          const all = iv.clone().concat(encrypted.ciphertext);
+          const result = CryptoJS.enc.Base64.stringify(all);
+          showResult('aes-result', result);
+        } catch (e) {
+          showResult('aes-result', 'AES加密失败: ' + e.message, true);
+        }
+      };
+
+      // ========== RSA ==========
+      const defaultPrivateKey =
+  'MIIBVAIBADANBgkqhkiG9w0BAQEFAASCAT4wggE6AgEAAkEAqhHyZfSsYourNxaY7Nt+PrgrxkiA50efORdI5U5lsW79MmFnusUA355oaSXcLhu5xxB38SMSyP2KvuKNPuH3owIDAQABAkAfoiLyL+Z4lf4Myxk6xUDgLaWGximj20CUf+5BKKnlrK+Ed8gAkM0HqoTt2UZwA5E2MzS4EI2gjfQhz5X28uqxAiEA3wNFxfrCZlSZHb0gn2zDpWowcSxQAgiCstxGUoOqlW8CIQDDOerGKH5OmCJ4Z21v+F25WaHYPxCFMvwxpcw99EcvDQIgIdhDTIqD2jfYjPTY8Jj3EDGPbH2HHuffvflECt3Ek60CIQCFRlCkHpi7hthhYhovyloRYsM+IS9h/0BzlEAuO0ktMQIgSPT3aFAgJYwKpqRYKlLDVcflZFCKY7u3UP8iWi1Qw0Y=';
+      const defaultPublicKey = 'MFwwDQYJKoZIhvcNAQEBBQADSwAwSAJBAKoR8mX0rGKLqzcWmOzbfj64K8ZIgOdHnzkXSOVOZbFu/TJhZ7rFAN+eaGkl3C4buccQd/EjEsj9ir7ijT7h96MCAwEAAQ==';
+
+      document.getElementById('rsa-private-key').value = defaultPrivateKey;
+
+      window.decryptRSA = function() {
+        try {
+          const cipher = document.getElementById('rsa-cipher').value.trim();
+          const privateKey = document.getElementById('rsa-private-key').value.trim();
+          if (!cipher || !privateKey) return showResult('rsa-result', '请输入密文和私钥', true);
+
+          const encryptor = new JSEncrypt();
+          encryptor.setPrivateKey(privateKey);
+          const result = encryptor.decrypt(cipher);
+          showResult('rsa-result', result || '(解密失败，请检查密钥)');
+        } catch (e) {
+          showResult('rsa-result', 'RSA解密失败: ' + e.message, true);
+        }
+      };
+
+      window.encryptRSA = function() {
+        try {
+          const plain = document.getElementById('rsa-cipher').value.trim();
+          const publicKey = defaultPublicKey;
+          const encryptor = new JSEncrypt();
+          encryptor.setPublicKey(publicKey);
+          const result = encryptor.encrypt(plain);
+          showResult('rsa-result', result || '(加密失败)');
+        } catch (e) {
+          showResult('rsa-result', 'RSA加密失败: ' + e.message, true);
+        }
+      };
+
+      // ========== SM2 / SM4 (动态加载) ==========
+      let smCryptoLoaded = false;
+      let sm2Instance = null;
+      let sm4Instance = null;
+
+      async function loadSmCrypto() {
+        if (smCryptoLoaded) return;
+        const mod = await import('sm-crypto');
+        sm2Instance = mod.sm2;
+        sm4Instance = mod.sm4;
+        smCryptoLoaded = true;
+      }
+
+      window.encryptSM2 = async function() {
+        try {
+          await loadSmCrypto();
+          const plain = document.getElementById('sm2-cipher').value.trim();
+          const publicKey = document.getElementById('sm2-public-key').value.trim();
+          if (!plain) return showResult('sm2-result', '请输入明文', true);
+          if (!publicKey) return showResult('sm2-result', '请输入公钥', true);
+
+          const result = sm2EncryptWithPublicKey(plain, publicKey);
+          showResult('sm2-result', result);
+        } catch (e) {
+          showResult('sm2-result', 'SM2加密失败: ' + e.message, true);
+        }
+      };
+
+      window.decryptSM2 = async function() {
+        try {
+          await loadSmCrypto();
+          const cipher = document.getElementById('sm2-cipher').value.trim();
+          const privateKey = document.getElementById('sm2-private-key').value.trim();
+          if (!cipher || !privateKey) return showResult('sm2-result', '请输入密文和私钥', true);
+
+          const result = sm2DecryptWithPrivateKey(cipher, privateKey);
+          showResult('sm2-result', result);
+        } catch (e) {
+          showResult('sm2-result', 'SM2解密失败: ' + e.message, true);
+        }
+      };
+
+      // ======================== SM4 纯JS实现 (与i-cis-front项目完全兼容) ========================
+      // 基于 GB/T 32907-2016 标准，与 BouncyCastle 完全兼容
+
+      const SM4_SBOX = [
+        0xd6, 0x90, 0xe9, 0xfe, 0xcc, 0xe1, 0x3d, 0xb7, 0x16, 0xb6, 0x14, 0xc2, 0x28, 0xfb, 0x2c, 0x05,
+        0x2b, 0x67, 0x9a, 0x76, 0x2a, 0xbe, 0x04, 0xc3, 0xaa, 0x44, 0x13, 0x26, 0x49, 0x86, 0x06, 0x99,
+        0x9c, 0x42, 0x50, 0xf4, 0x91, 0xef, 0x98, 0x7a, 0x33, 0x54, 0x0b, 0x43, 0xed, 0xcf, 0xac, 0x62,
+        0xe4, 0xb3, 0x1c, 0xa9, 0xc9, 0x08, 0xe8, 0x95, 0x80, 0xdf, 0x94, 0xfa, 0x75, 0x8f, 0x3f, 0xa6,
+        0x47, 0x07, 0xa7, 0xfc, 0xf3, 0x73, 0x17, 0xba, 0x83, 0x59, 0x3c, 0x19, 0xe6, 0x85, 0x4f, 0xa8,
+        0x68, 0x6b, 0x81, 0xb2, 0x71, 0x64, 0xda, 0x8b, 0xf8, 0xeb, 0x0f, 0x4b, 0x70, 0x56, 0x9d, 0x35,
+        0x1e, 0x24, 0x0e, 0x5e, 0x63, 0x58, 0xd1, 0xa2, 0x25, 0x22, 0x7c, 0x3b, 0x01, 0x21, 0x78, 0x87,
+        0xd4, 0x00, 0x46, 0x57, 0x9f, 0xd3, 0x27, 0x52, 0x4c, 0x36, 0x02, 0xe7, 0xa0, 0xc4, 0xc8, 0x9e,
+        0xea, 0xbf, 0x8a, 0xd2, 0x40, 0xc7, 0x38, 0xb5, 0xa3, 0xf7, 0xf2, 0xce, 0xf9, 0x61, 0x15, 0xa1,
+        0xe0, 0xae, 0x5d, 0xa4, 0x9b, 0x34, 0x1a, 0x55, 0xad, 0x93, 0x32, 0x30, 0xf5, 0x8c, 0xb1, 0xe3,
+        0x1d, 0xf6, 0xe2, 0x2e, 0x82, 0x66, 0xca, 0x60, 0xc0, 0x29, 0x23, 0xab, 0x0d, 0x53, 0x4e, 0x6f,
+        0xd5, 0xdb, 0x37, 0x45, 0xde, 0xfd, 0x8e, 0x2f, 0x03, 0xff, 0x6a, 0x72, 0x6d, 0x6c, 0x5b, 0x51,
+        0x8d, 0x1b, 0xaf, 0x92, 0xbb, 0xdd, 0xbc, 0x7f, 0x11, 0xd9, 0x5c, 0x41, 0x1f, 0x10, 0x5a, 0xd8,
+        0x0a, 0xc1, 0x31, 0x88, 0xa5, 0xcd, 0x7b, 0xbd, 0x2d, 0x74, 0xd0, 0x12, 0xb8, 0xe5, 0xb4, 0xb0,
+        0x89, 0x69, 0x97, 0x4a, 0x0c, 0x96, 0x77, 0x7e, 0x65, 0xb9, 0xf1, 0x09, 0xc5, 0x6e, 0xc6, 0x84,
+        0x18, 0xf0, 0x7d, 0xec, 0x3a, 0xdc, 0x4d, 0x20, 0x79, 0xee, 0x5f, 0x3e, 0xd7, 0xcb, 0x39, 0x48
+      ];
+
+      const SM4_FK = [0xa3b1bac6, 0x56aa3350, 0x677d9197, 0xb27022dc];
+
+      const SM4_CK = [
+        0x00070e15, 0x1c232a31, 0x383f464d, 0x545b6269, 0x70777e85, 0x8c939aa1, 0xa8afb6bd, 0xc4cbd2d9,
+        0xe0e7eef5, 0xfc030a11, 0x181f262d, 0x343b4249, 0x50575e65, 0x6c737a81, 0x888f969d, 0xa4abb2b9,
+        0xc0c7ced5, 0xdce3eaf1, 0xf8ff060d, 0x141b2229, 0x30373e45, 0x4c535a61, 0x686f767d, 0x848b9299,
+        0xa0a7aeb5, 0xbcc3cad1, 0xd8dfe6ed, 0xf4fb0209, 0x10171e25, 0x2c333a41, 0x484f565d, 0x646b7279
+      ];
+
+      function sm4GetULongBE(b, i) {
+        return (((b[i] & 0xff) << 24) | ((b[i + 1] & 0xff) << 16) | ((b[i + 2] & 0xff) << 8) | (b[i + 3] & 0xff)) >>> 0;
+      }
+
+      function sm4PutULongBE(n, b, i) {
+        b[i] = (n >>> 24) & 0xff;
+        b[i + 1] = (n >>> 16) & 0xff;
+        b[i + 2] = (n >>> 8) & 0xff;
+        b[i + 3] = n & 0xff;
+      }
+
+      function sm4Rotl32(x, n) {
+        return ((x << n) | (x >>> (32 - n))) >>> 0;
+      }
+
+      function sm4Sbox(inch) {
+        return SM4_SBOX[inch & 0xff];
+      }
+
+      function sm4Lt(ka) {
+        var a = [0, 0, 0, 0];
+        var b = [0, 0, 0, 0];
+        sm4PutULongBE(ka, a, 0);
+        b[0] = sm4Sbox(a[0]);
+        b[1] = sm4Sbox(a[1]);
+        b[2] = sm4Sbox(a[2]);
+        b[3] = sm4Sbox(a[3]);
+        var bb = sm4GetULongBE(b, 0);
+        return (bb ^ sm4Rotl32(bb, 2) ^ sm4Rotl32(bb, 10) ^ sm4Rotl32(bb, 18) ^ sm4Rotl32(bb, 24)) >>> 0;
+      }
+
+      function sm4F(x0, x1, x2, x3, rk) {
+        return (x0 ^ sm4Lt((x1 ^ x2 ^ x3 ^ rk) >>> 0)) >>> 0;
+      }
+
+      function sm4CalciRK(ka) {
+        var a = [0, 0, 0, 0];
+        var b = [0, 0, 0, 0];
+        sm4PutULongBE(ka, a, 0);
+        b[0] = sm4Sbox(a[0]);
+        b[1] = sm4Sbox(a[1]);
+        b[2] = sm4Sbox(a[2]);
+        b[3] = sm4Sbox(a[3]);
+        var bb = sm4GetULongBE(b, 0);
+        return (bb ^ sm4Rotl32(bb, 13) ^ sm4Rotl32(bb, 23)) >>> 0;
+      }
+
+      function sm4KeyExpansion(key) {
+        var MK = [0, 0, 0, 0];
+        var k = new Array(36);
+        var sk = new Array(32);
+        MK[0] = sm4GetULongBE(key, 0);
+        MK[1] = sm4GetULongBE(key, 4);
+        MK[2] = sm4GetULongBE(key, 8);
+        MK[3] = sm4GetULongBE(key, 12);
+        k[0] = (MK[0] ^ SM4_FK[0]) >>> 0;
+        k[1] = (MK[1] ^ SM4_FK[1]) >>> 0;
+        k[2] = (MK[2] ^ SM4_FK[2]) >>> 0;
+        k[3] = (MK[3] ^ SM4_FK[3]) >>> 0;
+        for (var i = 0; i < 32; i++) {
+          k[i + 4] = (k[i] ^ sm4CalciRK((k[i + 1] ^ k[i + 2] ^ k[i + 3] ^ SM4_CK[i]) >>> 0)) >>> 0;
+          sk[i] = k[i + 4];
+        }
+        return sk;
+      }
+
+      function sm4OneRound(sk, input, output) {
+        var x = new Array(36);
+        x[0] = sm4GetULongBE(input, 0);
+        x[1] = sm4GetULongBE(input, 4);
+        x[2] = sm4GetULongBE(input, 8);
+        x[3] = sm4GetULongBE(input, 12);
+        for (var i = 0; i < 32; i++) {
+          x[i + 4] = sm4F(x[i], x[i + 1], x[i + 2], x[i + 3], sk[i]);
+        }
+        sm4PutULongBE(x[35], output, 0);
+        sm4PutULongBE(x[34], output, 4);
+        sm4PutULongBE(x[33], output, 8);
+        sm4PutULongBE(x[32], output, 12);
+      }
+
+      function sm4Pkcs7Padding(input) {
+        var p = 16 - (input.length % 16);
+        var ret = new Uint8Array(input.length + p);
+        ret.set(input);
+        for (var i = 0; i < p; i++) {
+          ret[input.length + i] = p;
+        }
+        return ret;
+      }
+
+      function sm4Pkcs7Unpadding(input) {
+        var p = input[input.length - 1];
+        if (p < 1 || p > 16) return input;
+        return input.slice(0, input.length - p);
+      }
+
+      function sm4EcbEncrypt(keyBytes, plainBytes) {
+        var sk = sm4KeyExpansion(keyBytes);
+        var padded = sm4Pkcs7Padding(plainBytes);
+        var result = new Uint8Array(padded.length);
+        for (var offset = 0; offset < padded.length; offset += 16) {
+          var inBlock = padded.slice(offset, offset + 16);
+          var outBlock = new Uint8Array(16);
+          sm4OneRound(sk, inBlock, outBlock);
+          result.set(outBlock, offset);
+        }
+        return result;
+      }
+
+      function sm4EcbDecrypt(keyBytes, cipherBytes) {
+        var sk = sm4KeyExpansion(keyBytes);
+        for (var i = 0; i < 16; i++) {
+          var tmp = sk[i];
+          sk[i] = sk[31 - i];
+          sk[31 - i] = tmp;
+        }
+        var result = new Uint8Array(cipherBytes.length);
+        for (var offset = 0; offset < cipherBytes.length; offset += 16) {
+          var inBlock = cipherBytes.slice(offset, offset + 16);
+          var outBlock = new Uint8Array(16);
+          sm4OneRound(sk, inBlock, outBlock);
+          result.set(outBlock, offset);
+        }
+        return sm4Pkcs7Unpadding(result);
+      }
+
+      function sm4BytesToHex(bytes) {
+        var hex = '';
+        for (var i = 0; i < bytes.length; i++) {
+          hex += (bytes[i] < 16 ? '0' : '') + bytes[i].toString(16);
+        }
+        return hex;
+      }
+
+      function sm4HexToBytes(hex) {
+        var bytes = new Uint8Array(hex.length / 2);
+        for (var i = 0; i < hex.length; i += 2) {
+          bytes[i / 2] = parseInt(hex.substr(i, 2), 16);
+        }
+        return bytes;
+      }
+
+      function sm4StrToBytes(str) {
+        var utf8 = unescape(encodeURIComponent(str));
+        var bytes = new Uint8Array(utf8.length);
+        for (var i = 0; i < utf8.length; i++) {
+          bytes[i] = utf8.charCodeAt(i);
+        }
+        return bytes;
+      }
+
+      function sm4BytesToStr(bytes) {
+        var str = '';
+        for (var i = 0; i < bytes.length; i++) {
+          str += String.fromCharCode(bytes[i]);
+        }
+        return decodeURIComponent(escape(str));
+      }
+
+      // SM4 对外接口（与项目保持一致）
+      function sm4GenerateKey() {
+        var keyBytes = new Uint8Array(16);
+        if (typeof crypto !== 'undefined' && crypto.getRandomValues) {
+          crypto.getRandomValues(keyBytes);
+        } else {
+          for (var i = 0; i < 16; i++) {
+            keyBytes[i] = Math.floor(Math.random() * 256);
+          }
+        }
+        return sm4BytesToHex(keyBytes);
+      }
+
+      function sm4EncryptWithHexKey(sm4KeyHex, plainText) {
+        var keyBytes = sm4HexToBytes(sm4KeyHex);
+        var plainBytes = sm4StrToBytes(plainText);
+        var cipherBytes = sm4EcbEncrypt(keyBytes, plainBytes);
+        return sm4BytesToHex(cipherBytes);
+      }
+
+      function sm4DecryptWithHexKey(sm4KeyHex, cipherTextHex) {
+        var keyBytes = sm4HexToBytes(sm4KeyHex);
+        var cipherBytes = sm4HexToBytes(cipherTextHex);
+        var plainBytes = sm4EcbDecrypt(keyBytes, cipherBytes);
+        return sm4BytesToStr(plainBytes);
+      }
+
+      window.decryptSM4 = async function() {
+        try {
+          const cipher = document.getElementById('sm4-cipher').value.trim();
+          const key = document.getElementById('sm4-key').value.trim();
+          if (!cipher || !key) return showResult('sm4-result', '请输入密文和密钥', true);
+
+          const decrypted = sm4DecryptWithHexKey(key, cipher);
+          showResult('sm4-result', decrypted || '(解密结果为空)');
+        } catch (e) {
+          showResult('sm4-result', 'SM4解密失败: ' + e.message, true);
+        }
+      };
+
+      window.encryptSM4 = async function() {
+        try {
+          const plain = document.getElementById('sm4-cipher').value.trim();
+          const key = document.getElementById('sm4-key').value.trim();
+          if (!key) return showResult('sm4-result', '请输入密钥', true);
+
+          const encrypted = sm4EncryptWithHexKey(key, plain);
+          showResult('sm4-result', encrypted);
+        } catch (e) {
+          showResult('sm4-result', 'SM4加密失败: ' + e.message, true);
+        }
+      };
+
+      // ======================== SM2+SM4 混合加密工具函数 ========================
+
+      /**
+       * 签名原文构造：去掉 sign → key 字母排序 → "key1=value1|key2=value2"
+       * 与后端 SM2CryptoUtil.buildSignMessage() 完全一致
+       */
+      function buildSignMessage(obj) {
+        if (typeof obj === 'string') return obj;
+        if (!obj || typeof obj !== 'object') return '';
+        const sortedKeys = Object.keys(obj)
+          .filter((k) => k !== 'sign')
+          .sort();
+        return sortedKeys
+          .map((key) => key + '=' + (obj[key] == null ? '' : String(obj[key])))
+          .join('|');
+      }
+
+      /**
+       * SM2 公钥加密（带 04 前缀，与后端兼容）
+       * sm-crypto 输出无 04 前缀，后端需要 04 前缀，自动补上
+       */
+      function sm2EncryptWithPublicKey(plainText, publicKey) {
+        return '04' + sm2Instance.doEncrypt(plainText, publicKey, 1);
+      }
+
+      /**
+       * SM2 私钥解密（去掉 04 前缀，与后端兼容）
+       * 后端返回的密文有 04 前缀，sm-crypto 不需要，自动去掉
+       */
+      function sm2DecryptWithPrivateKey(cipherText, privateKey) {
+        let raw = cipherText;
+        if (raw.length > 2 && raw[0] === '0' && raw[1] === '4') {
+          raw = raw.substring(2);
+        }
+        const result = sm2Instance.doDecrypt(raw, privateKey, 1);
+        if (!result) {
+          throw new Error('SM2 解密返回空值，密钥可能不匹配');
+        }
+        return result;
+      }
+
+      /**
+       * SM2 私钥签名 Map（SM3withSM2，DER 编码）
+       */
+      function sm2SignMap(map, privateKey) {
+        return sm2Instance.doSignature(buildSignMessage(map), privateKey, { hash: true, der: true });
+      }
+
+      /**
+       * SM2 公钥验签 Map
+       */
+      function sm2VerifyMap(map, signature, publicKey) {
+        return sm2Instance.doVerifySignature(buildSignMessage(map), signature, publicKey, { hash: true, der: true });
+      }
+
+      /**
+       * 格式化日期 yyyy-MM-dd HH:mm:ss
+       */
+      function formatDateTime(date) {
+        const pad = (n) => String(n).padStart(2, '0');
+        return (
+          date.getFullYear() + '-' +
+          pad(date.getMonth() + 1) + '-' +
+          pad(date.getDate()) + ' ' +
+          pad(date.getHours()) + ':' +
+          pad(date.getMinutes()) + ':' +
+          pad(date.getSeconds())
+        );
+      }
+
+      /**
+       * 构建加密请求体（SM2+SM4 混合加密）
+       * SM4 加密业务数据（快），SM2 只加密 16 字节 SM4 密钥（1 次 EC 点乘）
+       * @param {*} businessData 业务数据（任意对象）
+       * @param {string} backendPublicKey 后端公钥
+       * @param {string} frontendPrivateKey 前端私钥
+       * @returns {Object} { time, data: SM4密文, sm4Key: SM2加密的SM4密钥, sign }
+       */
+      function encryptRequestHybrid(businessData, backendPublicKey, frontendPrivateKey) {
+        const jsonStr = typeof businessData === 'string' ? businessData : JSON.stringify(businessData);
+
+        const sm4KeyHex = sm4GenerateKey();
+        const encryptedData = sm4EncryptWithHexKey(sm4KeyHex, jsonStr);
+        const encryptedSm4Key = sm2EncryptWithPublicKey(sm4KeyHex, backendPublicKey);
+
+        const timeStr = formatDateTime(new Date());
+        const map = { time: timeStr, data: encryptedData, sm4Key: encryptedSm4Key };
+        map.sign = sm2SignMap(map, frontendPrivateKey);
+
+        return map;
+      }
+
+      /**
+       * 解密响应体（SM2+SM4 混合解密 或 纯 SM2 向后兼容）
+       * 混合模式：SM2 解密 sm4Key → SM4 解密 data
+       * 纯 SM2：SM2 解密 data
+       * @param {Object} responseBody 后端响应 { code, time, data, sm4Key?, sign }
+       * @param {string} frontendPrivateKey 前端私钥
+       * @param {string} backendPublicKey 后端公钥（用于验签）
+       * @returns {*} 解密后的业务数据
+       */
+      function decryptResponseHybrid(responseBody, frontendPrivateKey, backendPublicKey) {
+        const cipherText = responseBody.data;
+        const sign = responseBody.sign;
+        const sm4KeyEncrypted = responseBody.sm4Key || null;
+
+        // 1. 验签 —— 包含 sm4Key（混合模式）或只 {time, data}（纯 SM2）
+        const verifyData = sm4KeyEncrypted
+          ? { time: responseBody.time, data: cipherText, sm4Key: sm4KeyEncrypted }
+          : { time: responseBody.time, data: cipherText };
+
+        const verified = sm2VerifyMap(verifyData, sign, backendPublicKey);
+        if (!verified) {
+          throw new Error('SM2 响应验签失败，数据可能被篡改');
+        }
+
+        // 2. 解密 data
+        let decrypted;
+        if (sm4KeyEncrypted) {
+          const sm4KeyHex = sm2DecryptWithPrivateKey(sm4KeyEncrypted, frontendPrivateKey);
+          decrypted = sm4DecryptWithHexKey(sm4KeyHex, cipherText);
+        } else {
+          // 纯 SM2 模式
+          decrypted = sm2DecryptWithPrivateKey(cipherText, frontendPrivateKey);
+        }
+
+        // 3. JSON 解析
+        try {
+          return JSON.parse(decrypted);
+        } catch (e) {
+          return decrypted;
+        }
+      }
+
+      // ========== SM2+SM4 混合加密 ==========
+      window.encryptHybrid = async function() {
+        try {
+          await loadSmCrypto();
+          const dataStr = document.getElementById('hybrid-encrypt-data').value.trim();
+          const backendPublicKey = document.getElementById('hybrid-encrypt-backend-pubkey').value.trim();
+          const frontendPrivateKey = document.getElementById('hybrid-encrypt-frontend-prikey').value.trim();
+
+          if (!dataStr) return showResult('hybrid-encrypt-result', '请输入业务数据', true);
+          if (!backendPublicKey) return showResult('hybrid-encrypt-result', '请输入后端公钥', true);
+          if (!frontendPrivateKey) return showResult('hybrid-encrypt-result', '请输入前端私钥', true);
+
+          // 解析业务数据
+          let businessData;
+          try {
+            businessData = JSON.parse(dataStr);
+          } catch (e) {
+            businessData = dataStr; // 如果不是JSON，作为字符串处理
+          }
+
+          // 执行混合加密
+          const result = encryptRequestHybrid(businessData, backendPublicKey, frontendPrivateKey);
+
+          // 格式化输出
+          let output = '【混合加密结果】\n\n';
+          output += 'time: ' + result.time + '\n';
+          output += 'data (SM4加密): ' + result.data.substring(0, 60) + '...\n';
+          output += 'sm4Key (SM2加密): ' + result.sm4Key.substring(0, 60) + '...\n';
+          output += 'sign (SM2签名): ' + result.sign.substring(0, 60) + '...\n\n';
+          output += '完整JSON:\n' + JSON.stringify(result, null, 2);
+
+          showResult('hybrid-encrypt-result', output);
+        } catch (e) {
+          showResult('hybrid-encrypt-result', '混合加密失败: ' + e.message, true);
+        }
+      };
+
+      // ========== SM2+SM4 混合解密 ==========
+      window.decryptHybrid = async function() {
+        try {
+          await loadSmCrypto();
+          const jsonStr = document.getElementById('hybrid-json').value.trim();
+          const privateKey = document.getElementById('hybrid-private-key').value.trim();
+          const publicKey = document.getElementById('hybrid-public-key').value.trim();
+          const verify = document.getElementById('hybrid-verify').checked;
+
+          if (!jsonStr || !privateKey) return showResult('hybrid-result', '请输入响应体和私钥', true);
+          if (verify && !publicKey) return showResult('hybrid-result', '请输入后端公钥用于验签', true);
+
+          const body = JSON.parse(jsonStr);
+
+          // 使用完整实现解密
+          let result = '【混合解密结果】\n\n';
+
+          // 1. 验签
+          if (verify && body.sign && publicKey) {
+            try {
+              const verifyData = body.sm4Key
+                ? { time: body.time, data: body.data, sm4Key: body.sm4Key }
+                : { time: body.time, data: body.data };
+              const verified = sm2VerifyMap(verifyData, body.sign, publicKey);
+              result += '✅ 签名验证: ' + (verified ? '通过' : '失败') + '\n\n';
+              if (!verified) {
+                result += '⚠️ 警告：签名验证失败，数据可能被篡改\n\n';
+              }
+            } catch (e) {
+              result += '⚠️ 签名验证出错: ' + e.message + '\n\n';
+            }
+          } else if (verify) {
+            result += '⚠️ 跳过签名验证（未提供公钥）\n\n';
+          } else {
+            result += '⏭️ 跳过签名验证（用户选择）\n\n';
+          }
+
+          // 2. 执行解密
+          try {
+            const decrypted = decryptResponseHybrid(body, privateKey, publicKey || '');
+            result += '📦 解密数据:\n' + JSON.stringify(decrypted, null, 2);
+          } catch (e) {
+            // 尝试简单解密（兼容旧格式）
+            const cipherText = body.data;
+            const sm4KeyEncrypted = body.sm4Key;
+
+            if (sm4KeyEncrypted && sm4KeyEncrypted.startsWith('04')) {
+              const rawSm4Key = sm2Instance.doDecrypt(sm4KeyEncrypted.substring(2), privateKey, 1);
+              result += '🔑 SM2 解密密钥: ' + rawSm4Key + '\n\n';
+              const decrypted = sm4DecryptWithHexKey(rawSm4Key, cipherText);
+              result += '📦 SM4 解密数据:\n' + decrypted;
+            } else if (cipherText) {
+              const raw = cipherText.startsWith('04') ? cipherText.substring(2) : cipherText;
+              const decrypted = sm2Instance.doDecrypt(raw, privateKey, 1);
+              result += '📦 SM2 解密数据:\n' + decrypted;
+            } else {
+              throw e;
+            }
+          }
+
+          showResult('hybrid-result', result);
+        } catch (e) {
+          showResult('hybrid-result', '混合解密失败: ' + e.message, true);
+        }
+      };
+
+      // ========== 通用工具 ==========
+      window.utilBase64Encode = function() {
+        try {
+          const input = document.getElementById('util-input').value;
+          showResult('util-result', btoa(unescape(encodeURIComponent(input))));
+        } catch (e) { showResult('util-result', '编码失败: ' + e.message, true); }
+      };
+      window.utilBase64Decode = function() {
+        try {
+          const input = document.getElementById('util-input').value;
+          showResult('util-result', decodeURIComponent(escape(atob(input))));
+        } catch (e) { showResult('util-result', '解码失败: ' + e.message, true); }
+      };
+      window.utilURLEncode = function() {
+        showResult('util-result', encodeURIComponent(document.getElementById('util-input').value));
+      };
+      window.utilURLDecode = function() {
+        try { showResult('util-result', decodeURIComponent(document.getElementById('util-input').value)); }
+        catch (e) { showResult('util-result', '解码失败: ' + e.message, true); }
+      };
+      window.utilHexEncode = function() {
+        const input = document.getElementById('util-input').value;
+        let hex = '';
+        for (let i = 0; i < input.length; i++) hex += input.charCodeAt(i).toString(16).padStart(2, '0');
+        showResult('util-result', hex);
+      };
+      window.utilHexDecode = function() {
+        try {
+          let hex = document.getElementById('util-input').value.replace(/\s/g, '');
+          let str = '';
+          for (let i = 0; i < hex.length; i += 2) str += String.fromCharCode(parseInt(hex.substr(i, 2), 16));
+          showResult('util-result', str);
+        } catch (e) { showResult('util-result', '解码失败: ' + e.message, true); }
+      };
+      window.utilJsonFormat = function() {
+        try {
+          const input = document.getElementById('util-input').value;
+          showResult('util-result', JSON.stringify(JSON.parse(input), null, 2));
+        } catch (e) { showResult('util-result', '格式化失败: ' + e.message, true); }
+      };
+      window.utilJsonMinify = function() {
+        try {
+          const input = document.getElementById('util-input').value;
+          showResult('util-result', JSON.stringify(JSON.parse(input)));
+        } catch (e) { showResult('util-result', '压缩失败: ' + e.message, true); }
+      };
+    </script>
+  </body>
+  </html>
