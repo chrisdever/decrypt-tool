@@ -1,0 +1,673 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>i-cis-front SM2+SM4 加解密调试工具</title>
+<script src="https://cdn.jsdelivr.net/npm/sm-crypto@0.4.0/dist/sm2.min.js"></script>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, "SF Mono", "Menlo", "Monaco", "Courier New", monospace; background: #0d1117; color: #c9d1d9; min-height: 100vh; }
+.header { background: #161b22; border-bottom: 1px solid #30363d; padding: 16px 24px; display: flex; align-items: center; gap: 12px; }
+.header h1 { font-size: 18px; font-weight: 600; color: #58a6ff; }
+.header .badge { font-size: 11px; background: #238636; color: #fff; padding: 2px 8px; border-radius: 12px; }
+.container { max-width: 960px; margin: 0 auto; padding: 24px; }
+.tabs { display: flex; gap: 4px; margin-bottom: 20px; border-bottom: 1px solid #30363d; }
+.tab { padding: 10px 20px; cursor: pointer; border: 1px solid transparent; border-bottom: none; border-radius: 6px 6px 0 0; font-size: 14px; color: #8b949e; background: transparent; transition: all .15s; }
+.tab:hover { color: #c9d1d9; background: #21262d; }
+.tab.active { color: #58a6ff; background: #161b22; border-color: #30363d; }
+.section { background: #161b22; border: 1px solid #30363d; border-radius: 6px; padding: 20px; margin-bottom: 16px; }
+.section-title { font-size: 13px; font-weight: 600; color: #8b949e; text-transform: uppercase; margin-bottom: 12px; letter-spacing: .5px; }
+.form-row { display: flex; gap: 12px; margin-bottom: 12px; flex-wrap: wrap; }
+.form-group { flex: 1; min-width: 200px; }
+.form-group label { display: block; font-size: 12px; color: #8b949e; margin-bottom: 4px; }
+.form-group input, .form-group textarea { width: 100%; padding: 8px 12px; border: 1px solid #30363d; border-radius: 6px; background: #0d1117; color: #c9d1d9; font-family: inherit; font-size: 13px; resize: vertical; }
+.form-group textarea { min-height: 120px; }
+.form-group input:focus, .form-group textarea:focus { outline: none; border-color: #58a6ff; box-shadow: 0 0 0 2px rgba(88,166,255,.3); }
+.form-group input.mono, .form-group textarea.mono { font-family: "SF Mono", "Menlo", "Monaco", "Courier New", monospace; font-size: 12px; }
+.btn-row { display: flex; gap: 8px; margin-top: 16px; flex-wrap: wrap; }
+.btn { padding: 8px 20px; border-radius: 6px; font-size: 13px; font-weight: 500; cursor: pointer; border: 1px solid transparent; transition: all .15s; font-family: inherit; }
+.btn-primary { background: #238636; color: #fff; border-color: #2ea043; }
+.btn-primary:hover { background: #2ea043; }
+.btn-outline { background: transparent; color: #c9d1d9; border-color: #30363d; }
+.btn-outline:hover { background: #21262d; }
+.btn-danger { background: transparent; color: #f85149; border-color: #f85149; }
+.btn-danger:hover { background: #da3633; color: #fff; }
+.result-area { background: #0d1117; border: 1px solid #30363d; border-radius: 6px; padding: 16px; min-height: 80px; max-height: 500px; overflow: auto; font-family: "SF Mono", "Menlo", "Monaco", "Courier New", monospace; font-size: 12px; white-space: pre-wrap; word-break: break-all; }
+.result-area.error { color: #f85149; border-color: #f85149; }
+.result-area.success { color: #7ee787; }
+.result-area.info { color: #8b949e; }
+.key-presets { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; }
+.key-preset { font-size: 11px; padding: 2px 10px; border-radius: 12px; background: #21262d; color: #8b949e; cursor: pointer; border: 1px solid #30363d; transition: all .15s; }
+.key-preset:hover { color: #58a6ff; border-color: #58a6ff; }
+.hint { font-size: 11px; color: #8b949e; margin-top: 4px; line-height: 1.5; }
+.two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+@media (max-width: 640px) { .two-col { grid-template-columns: 1fr; } }
+.collapsible-header { cursor: pointer; display: flex; align-items: center; gap: 8px; user-select: none; }
+.collapsible-header::before { content: "▸"; font-size: 10px; transition: transform .15s; display: inline-block; width: 12px; color: #8b949e; }
+.collapsible-header.open::before { transform: rotate(90deg); }
+.collapsible-body { display: none; margin-top: 12px; }
+.collapsible-body.open { display: block; }
+.divider { border: none; border-top: 1px solid #30363d; margin: 16px 0; }
+.footer { text-align: center; padding: 16px; font-size: 11px; color: #484f58; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>SM2+SM4 加解密调试工具</h1>
+  <span class="badge">i-cis-front</span>
+</div>
+
+<div class="container">
+  <div class="tabs">
+    <button class="tab active" data-tab="decrypt">🔓 解密响应</button>
+    <button class="tab" data-tab="encrypt">🔒 加密请求</button>
+    <button class="tab" data-tab="sm4">🔑 SM4 独立加解密</button>
+    <button class="tab" data-tab="keys">🗝 密钥管理</button>
+  </div>
+
+  <!-- ==================== 解密响应 Tab ==================== -->
+  <div class="tab-content" id="tab-decrypt">
+    <div class="section">
+      <div class="section-title collapsible-header open">🔑 密钥配置</div>
+      <div class="collapsible-body open" id="decrypt-key-body">
+        <div class="key-presets">
+          <span class="key-preset" onclick="loadFromCookie()" title="从 Cookie 加载密钥（sm2-backend-public-key, sm2-frontend-private-key）">📋 从 Cookie 加载</span>
+          <span class="key-preset" onclick="saveToLocal()">💾 存到本地</span>
+          <span class="key-preset" onclick="loadFromLocal()">📂 从本地加载</span>
+          <span class="key-preset" onclick="clearKeys()">🗑 清空密钥</span>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>后端公钥 (Backend Public Key) — 130 hex 字符，04 开头</label>
+            <input type="text" id="decrypt-backend-pub" class="mono" placeholder="04xxxxxxxx...（130 字符 hex）">
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>前端私钥 (Frontend Private Key) — 64 hex 字符</label>
+            <input type="text" id="decrypt-frontend-priv" class="mono" placeholder="xxxxxxxx...（64 字符 hex）">
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">📥 加密响应体（粘贴后端返回的完整 JSON）</div>
+      <div class="form-group">
+        <textarea id="decrypt-input" class="mono" placeholder='粘贴加密响应 JSON，例如：
+{
+  "code": 200,
+  "time": "2025-07-24 14:30:01",
+  "data": "a1b2c3d4...（SM4 密文 hex）",
+  "sm4Key": "04...（SM2 加密的 SM4 密钥 hex）",
+  "sign": "3044...（SM2 DER 签名 hex）"
+}'></textarea>
+      </div>
+      <div class="btn-row">
+        <button class="btn btn-primary" onclick="doDecrypt()">🔓 解密</button>
+        <button class="btn btn-outline" onclick="prettyFormat('decrypt-input')">✨ 格式化 JSON</button>
+        <button class="btn btn-outline" onclick="copyExample('decrypt')">📋 粘贴示例</button>
+      </div>
+      <div class="hint">
+        支持混合模式（SM4 encrypted data + SM2 encrypted sm4Key）和纯 SM2 模式（无 sm4Key，data 即 SM2 密文）。
+        解密流程：验签（SM2/SM3/DER）→ SM2 解密 sm4Key → SM4/ECB 解密 data → JSON.parse
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">📤 解密结果</div>
+      <div id="decrypt-output" class="result-area info">等待输入...</div>
+      <div class="btn-row" style="margin-top:8px">
+        <button class="btn btn-outline" onclick="copyOutput('decrypt-output')">📋 复制结果</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== 加密请求 Tab ==================== -->
+  <div class="tab-content" id="tab-encrypt" style="display:none">
+    <div class="section">
+      <div class="section-title collapsible-header open">🔑 密钥配置</div>
+      <div class="collapsible-body open">
+        <div class="form-row">
+          <div class="form-group">
+            <label>后端公钥 (Backend Public Key)</label>
+            <input type="text" id="encrypt-backend-pub" class="mono" placeholder="04xxxxxxxx...（130 字符）">
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>前端私钥 (Frontend Private Key) — 用于签名</label>
+            <input type="text" id="encrypt-frontend-priv" class="mono" placeholder="xxxxxxxx...（64 字符）">
+          </div>
+        </div>
+        <button class="btn btn-outline" style="margin-top:4px" onclick="syncKeysToEncrypt()">↩ 从解密 Tab 同步密钥</button>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">📥 业务数据（明文 JSON）</div>
+      <div class="form-group">
+        <textarea id="encrypt-input" class="mono" placeholder='输入要加密的业务数据 JSON，例如：
+{
+  "pageNum": 1,
+  "pageSize": 10,
+  "userName": "admin"
+}'></textarea>
+      </div>
+      <div class="btn-row">
+        <button class="btn btn-primary" onclick="doEncrypt()">🔒 加密</button>
+        <button class="btn btn-outline" onclick="prettyFormat('encrypt-input')">✨ 格式化 JSON</button>
+      </div>
+      <div class="hint">
+        加密流程：JSON.stringify → SM4 随机密钥 → SM4/ECB 加密数据 → SM2 加密 SM4 密钥 → 签名（SM2/SM3/DER）
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">📤 加密请求体</div>
+      <div id="encrypt-output" class="result-area info">等待输入...</div>
+      <div class="hint" style="margin-top:8px">
+        将此 JSON 作为请求 body 发送，同时设置 Header: X-Encrypted: sm2
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== SM4 独立加解密 Tab ==================== -->
+  <div class="tab-content" id="tab-sm4" style="display:none">
+    <div class="two-col">
+      <div class="section">
+        <div class="section-title">🔒 SM4 加密</div>
+        <div class="form-group">
+          <label>SM4 密钥（32 字符 hex）</label>
+          <input type="text" id="sm4-key-enc" class="mono" placeholder="a1b2c3d4...（32 字符 hex）">
+        </div>
+        <div class="btn-row" style="margin-bottom:12px">
+          <button class="btn btn-outline" onclick="generateSm4Key()">🎲 随机生成密钥</button>
+        </div>
+        <div class="form-group">
+          <label>明文</label>
+          <textarea id="sm4-plain" placeholder="输入要加密的文本或 JSON ..."></textarea>
+        </div>
+        <div class="btn-row">
+          <button class="btn btn-primary" onclick="doSm4Encrypt()">🔒 SM4 加密</button>
+        </div>
+        <div class="form-group" style="margin-top:12px">
+          <label>密文（hex）</label>
+          <textarea id="sm4-cipher-out" class="mono" readonly></textarea>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="section-title">🔓 SM4 解密</div>
+        <div class="form-group">
+          <label>SM4 密钥（32 字符 hex）</label>
+          <input type="text" id="sm4-key-dec" class="mono" placeholder="a1b2c3d4...（32 字符 hex）">
+        </div>
+        <div class="form-group">
+          <label>密文（hex）</label>
+          <textarea id="sm4-cipher-in" class="mono" placeholder="粘贴 SM4 密文 hex ..."></textarea>
+        </div>
+        <div class="btn-row">
+          <button class="btn btn-primary" onclick="doSm4Decrypt()">🔓 SM4 解密</button>
+        </div>
+        <div class="form-group" style="margin-top:12px">
+          <label>明文</label>
+          <textarea id="sm4-plain-out" readonly></textarea>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== 密钥管理 Tab ==================== -->
+  <div class="tab-content" id="tab-keys" style="display:none">
+    <div class="section">
+      <div class="section-title">🗝 当前 Cookie 中的密钥</div>
+      <div id="cookie-keys-display" class="result-area info">点击"刷新"查看...</div>
+      <div class="btn-row" style="margin-top:8px">
+        <button class="btn btn-outline" onclick="showCookieKeys()">🔄 刷新</button>
+      </div>
+      <div class="hint" style="margin-top:8px">
+        Cookie 键名：sm2-backend-public-key / sm2-frontend-private-key / sm2-frontend-public-key
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">📐 04 前缀规则说明</div>
+      <div class="result-area info">
+sm-crypto doEncrypt 输出： x||y||C3||C2（无 04）
+sm-crypto doDecrypt 输入： x||y||C3||C2（无 04，内部自动补 04 解码）
+后端 Bouncy Castle 输出：  04||x||y||C3||C2（有 04）
+后端 Bouncy Castle 输入：  04||x||y||C3||C2（必须有 04）
+
+→ 加密发给后端时补 04，解密后端数据时去 04。</div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">📝 签名原文构造规则</div>
+      <div class="result-area info">
+1. 去掉 sign 字段
+2. key 按字母排序
+3. 用 "|" 连接，格式：key1=value1|key2=value2
+4. SM2 签名（SM3 哈希，DER 编码）
+
+与后端 SM2CryptoUtil.buildSignMessage() 完全一致。</div>
+    </div>
+  </div>
+
+  <div class="footer">
+    SM2+SM4 混合加解密 · SM4/ECB/PKCS5Padding · SM2 C1C3C2 · sm-crypto v0.4.0 · 国密算法 GB/T 32907
+  </div>
+</div>
+
+<script>
+// ======================== SM4 纯 JS 实现 ========================
+var SBOX = [
+  0xd6,0x90,0xe9,0xfe,0xcc,0xe1,0x3d,0xb7,0x16,0xb6,0x14,0xc2,0x28,0xfb,0x2c,0x05,
+  0x2b,0x67,0x9a,0x76,0x2a,0xbe,0x04,0xc3,0xaa,0x44,0x13,0x26,0x49,0x86,0x06,0x99,
+  0x9c,0x42,0x50,0xf4,0x91,0xef,0x98,0x7a,0x33,0x54,0x0b,0x43,0xed,0xcf,0xac,0x62,
+  0xe4,0xb3,0x1c,0xa9,0xc9,0x08,0xe8,0x95,0x80,0xdf,0x94,0xfa,0x75,0x8f,0x3f,0xa6,
+  0x47,0x07,0xa7,0xfc,0xf3,0x73,0x17,0xba,0x83,0x59,0x3c,0x19,0xe6,0x85,0x4f,0xa8,
+  0x68,0x6b,0x81,0xb2,0x71,0x64,0xda,0x8b,0xf8,0xeb,0x0f,0x4b,0x70,0x56,0x9d,0x35,
+  0x1e,0x24,0x0e,0x5e,0x63,0x58,0xd1,0xa2,0x25,0x22,0x7c,0x3b,0x01,0x21,0x78,0x87,
+  0xd4,0x00,0x46,0x57,0x9f,0xd3,0x27,0x52,0x4c,0x36,0x02,0xe7,0xa0,0xc4,0xc8,0x9e,
+  0xea,0xbf,0x8a,0xd2,0x40,0xc7,0x38,0xb5,0xa3,0xf7,0xf2,0xce,0xf9,0x61,0x15,0xa1,
+  0xe0,0xae,0x5d,0xa4,0x9b,0x34,0x1a,0x55,0xad,0x93,0x32,0x30,0xf5,0x8c,0xb1,0xe3,
+  0x1d,0xf6,0xe2,0x2e,0x82,0x66,0xca,0x60,0xc0,0x29,0x23,0xab,0x0d,0x53,0x4e,0x6f,
+  0xd5,0xdb,0x37,0x45,0xde,0xfd,0x8e,0x2f,0x03,0xff,0x6a,0x72,0x6d,0x6c,0x5b,0x51,
+  0x8d,0x1b,0xaf,0x92,0xbb,0xdd,0xbc,0x7f,0x11,0xd9,0x5c,0x41,0x1f,0x10,0x5a,0xd8,
+  0x0a,0xc1,0x31,0x88,0xa5,0xcd,0x7b,0xbd,0x2d,0x74,0xd0,0x12,0xb8,0xe5,0xb4,0xb0,
+  0x89,0x69,0x97,0x4a,0x0c,0x96,0x77,0x7e,0x65,0xb9,0xf1,0x09,0xc5,0x6e,0xc6,0x84,
+  0x18,0xf0,0x7d,0xec,0x3a,0xdc,0x4d,0x20,0x79,0xee,0x5f,0x3e,0xd7,0xcb,0x39,0x48
+];
+var FK = [0xa3b1bac6, 0x56aa3350, 0x677d9197, 0xb27022dc];
+var CK = [
+  0x00070e15,0x1c232a31,0x383f464d,0x545b6269,0x70777e85,0x8c939aa1,0xa8afb6bd,0xc4cbd2d9,
+  0xe0e7eef5,0xfc030a11,0x181f262d,0x343b4249,0x50575e65,0x6c737a81,0x888f969d,0xa4abb2b9,
+  0xc0c7ced5,0xdce3eaf1,0xf8ff060d,0x141b2229,0x30373e45,0x4c535a61,0x686f767d,0x848b9299,
+  0xa0a7aeb5,0xbcc3cad1,0xd8dfe6ed,0xf4fb0209,0x10171e25,0x2c333a41,0x484f565d,0x646b7279
+];
+
+function getULongBE(b, i) { return (((b[i]&0xff)<<24)|((b[i+1]&0xff)<<16)|((b[i+2]&0xff)<<8)|(b[i+3]&0xff))>>>0; }
+function putULongBE(n, b, i) { b[i]=(n>>>24)&0xff; b[i+1]=(n>>>16)&0xff; b[i+2]=(n>>>8)&0xff; b[i+3]=n&0xff; }
+function rotl32(x, n) { return ((x<<n)|(x>>>(32-n)))>>>0; }
+function sm4Sbox(inch) { return SBOX[inch&0xff]; }
+function sm4Lt(ka) {
+  var a=[0,0,0,0], b=[0,0,0,0];
+  putULongBE(ka,a,0); b[0]=sm4Sbox(a[0]); b[1]=sm4Sbox(a[1]); b[2]=sm4Sbox(a[2]); b[3]=sm4Sbox(a[3]);
+  var bb=getULongBE(b,0);
+  return (bb^rotl32(bb,2)^rotl32(bb,10)^rotl32(bb,18)^rotl32(bb,24))>>>0;
+}
+function sm4F(x0,x1,x2,x3,rk) { return (x0^sm4Lt((x1^x2^x3^rk)>>>0))>>>0; }
+function sm4CalciRK(ka) {
+  var a=[0,0,0,0], b=[0,0,0,0];
+  putULongBE(ka,a,0); b[0]=sm4Sbox(a[0]); b[1]=sm4Sbox(a[1]); b[2]=sm4Sbox(a[2]); b[3]=sm4Sbox(a[3]);
+  var bb=getULongBE(b,0);
+  return (bb^rotl32(bb,13)^rotl32(bb,23))>>>0;
+}
+function sm4KeyExpansion(key) {
+  var MK=[0,0,0,0], k=new Array(36), sk=new Array(32);
+  MK[0]=getULongBE(key,0); MK[1]=getULongBE(key,4); MK[2]=getULongBE(key,8); MK[3]=getULongBE(key,12);
+  k[0]=(MK[0]^FK[0])>>>0; k[1]=(MK[1]^FK[1])>>>0; k[2]=(MK[2]^FK[2])>>>0; k[3]=(MK[3]^FK[3])>>>0;
+  for(var i=0;i<32;i++){ k[i+4]=(k[i]^sm4CalciRK((k[i+1]^k[i+2]^k[i+3]^CK[i])>>>0))>>>0; sk[i]=k[i+4]; }
+  return sk;
+}
+function sm4OneRound(sk, input, output) {
+  var x=new Array(36);
+  x[0]=getULongBE(input,0); x[1]=getULongBE(input,4); x[2]=getULongBE(input,8); x[3]=getULongBE(input,12);
+  for(var i=0;i<32;i++) x[i+4]=sm4F(x[i],x[i+1],x[i+2],x[i+3],sk[i]);
+  putULongBE(x[35],output,0); putULongBE(x[34],output,4); putULongBE(x[33],output,8); putULongBE(x[32],output,12);
+}
+function pkcs7Padding(input) {
+  var p=16-(input.length%16), ret=new Uint8Array(input.length+p);
+  ret.set(input); for(var i=0;i<p;i++) ret[input.length+i]=p;
+  return ret;
+}
+function pkcs7Unpadding(input) {
+  var p=input[input.length-1];
+  if(p<1||p>16) return input;
+  return input.slice(0,input.length-p);
+}
+function sm4EcbEncrypt(keyBytes, plainBytes) {
+  var sk=sm4KeyExpansion(keyBytes), padded=pkcs7Padding(plainBytes), result=new Uint8Array(padded.length);
+  for(var offset=0;offset<padded.length;offset+=16){
+    var inBlock=padded.slice(offset,offset+16), outBlock=new Uint8Array(16);
+    sm4OneRound(sk,inBlock,outBlock); result.set(outBlock,offset);
+  }
+  return result;
+}
+function sm4EcbDecrypt(keyBytes, cipherBytes) {
+  var sk=sm4KeyExpansion(keyBytes);
+  for(var i=0;i<16;i++){ var tmp=sk[i]; sk[i]=sk[31-i]; sk[31-i]=tmp; }
+  var result=new Uint8Array(cipherBytes.length);
+  for(var offset=0;offset<cipherBytes.length;offset+=16){
+    var inBlock=cipherBytes.slice(offset,offset+16), outBlock=new Uint8Array(16);
+    sm4OneRound(sk,inBlock,outBlock); result.set(outBlock,offset);
+  }
+  return pkcs7Unpadding(result);
+}
+function bytesToHex(bytes) { var h=''; for(var i=0;i<bytes.length;i++) h+=(bytes[i]<16?'0':'')+bytes[i].toString(16); return h; }
+function hexToBytes(hex) { var b=new Uint8Array(hex.length/2); for(var i=0;i<hex.length;i+=2) b[i/2]=parseInt(hex.substr(i,2),16); return b; }
+function strToBytes(str) { var u=unescape(encodeURIComponent(str)), b=new Uint8Array(u.length); for(var i=0;i<u.length;i++) b[i]=u.charCodeAt(i); return b; }
+function bytesToStr(bytes) { var s=''; for(var i=0;i<bytes.length;i++) s+=String.fromCharCode(bytes[i]); return decodeURIComponent(escape(s)); }
+
+function sm4GenerateKey() {
+  var b=new Uint8Array(16);
+  if(typeof crypto!=='undefined'&&crypto.getRandomValues) crypto.getRandomValues(b);
+  else for(var i=0;i<16;i++) b[i]=Math.floor(Math.random()*256);
+  return bytesToHex(b);
+}
+function sm4Encrypt(keyHex, plainText) {
+  var kb=hexToBytes(keyHex), pb=strToBytes(plainText), cb=sm4EcbEncrypt(kb,pb);
+  return bytesToHex(cb);
+}
+function sm4Decrypt(keyHex, cipherHex) {
+  var kb=hexToBytes(keyHex), cb=hexToBytes(cipherHex), pb=sm4EcbDecrypt(kb,cb);
+  return bytesToStr(pb);
+}
+
+// ======================== 签名原文构造 ========================
+function buildSignMessage(obj) {
+  if(typeof obj==='string') return obj;
+  if(!obj||typeof obj!=='object') return '';
+  var keys=Object.keys(obj).filter(function(k){return k!=='sign'}).sort();
+  return keys.map(function(k){return k+'='+(obj[k]==null?'':String(obj[k]))}).join('|');
+}
+
+// ======================== 日期格式化 ========================
+function formatDateTime(date) {
+  var p=function(n){return String(n).padStart(2,'0')};
+  return date.getFullYear()+'-'+p(date.getMonth()+1)+'-'+p(date.getDate())+' '+p(date.getHours())+':'+p(date.getMinutes())+':'+p(date.getSeconds());
+}
+
+// ======================== SM2 辅助 ========================
+function getSm2() {
+  if(typeof sm2==='undefined') throw new Error('sm-crypto 库加载失败，请检查网络连接。');
+  return sm2;
+}
+
+function sm2Encrypt(plainText, publicKey) {
+  var s=getSm2();
+  return '04'+s.doEncrypt(plainText, publicKey, 1);
+}
+
+function sm2Decrypt(cipherText, privateKey) {
+  var raw=cipherText;
+  if(raw.length>2&&raw[0]==='0'&&raw[1]==='4') raw=raw.substring(2);
+  var s=getSm2(), r=s.doDecrypt(raw, privateKey, 1);
+  if(!r) throw new Error('SM2 解密返回空值，密钥可能不匹配');
+  return r;
+}
+
+function sm2Sign(map, privateKey) {
+  return getSm2().doSignature(buildSignMessage(map), privateKey, { hash:true, der:true });
+}
+
+function sm2Verify(map, signature, publicKey) {
+  return getSm2().doVerifySignature(buildSignMessage(map), signature, publicKey, { hash:true, der:true });
+}
+
+// ======================== 核心：解密响应 ========================
+function decryptResponse(responseBody, backendPublicKey, frontendPrivateKey) {
+  if(!responseBody||typeof responseBody!=='object') throw new Error('响应体必须是 JSON 对象');
+  if(!responseBody.data||!responseBody.sign||responseBody.time===undefined) throw new Error('响应体缺少必要字段（data/sign/time）');
+
+  var cipherText=responseBody.data;
+  var signature=responseBody.sign;
+  var sm4KeyEncrypted=responseBody.sm4Key||null;
+  var timeStr=responseBody.time;
+
+  // 1. 验签
+  var verifyData=sm4KeyEncrypted
+    ? {time:timeStr, data:cipherText, sm4Key:sm4KeyEncrypted}
+    : {time:timeStr, data:cipherText};
+  var verified=sm2Verify(verifyData, signature, backendPublicKey);
+  if(!verified) throw new Error('SM2 响应验签失败，数据可能被篡改');
+
+  // 2. 解密
+  var decrypted;
+  if(sm4KeyEncrypted) {
+    // 混合模式：SM2 解密 sm4Key → SM4 解密 data
+    var sm4KeyHex=sm2Decrypt(sm4KeyEncrypted, frontendPrivateKey);
+    decrypted=sm4Decrypt(sm4KeyHex, cipherText);
+  } else {
+    // 纯 SM2 模式
+    decrypted=sm2Decrypt(cipherText, frontendPrivateKey);
+  }
+
+  // 3. JSON 解析
+  try { return JSON.parse(decrypted); }
+  catch(e) { return decrypted; }
+}
+
+// ======================== 核心：加密请求 ========================
+function encryptRequest(businessData, backendPublicKey, frontendPrivateKey) {
+  var jsonStr=typeof businessData==='string'?businessData:JSON.stringify(businessData);
+
+  // 1. 生成随机 SM4 密钥
+  var sm4KeyHex=sm4GenerateKey();
+
+  // 2. SM4 加密业务数据
+  var encryptedData=sm4Encrypt(sm4KeyHex, jsonStr);
+
+  // 3. SM2 加密 SM4 密钥
+  var encryptedSm4Key=sm2Encrypt(sm4KeyHex, backendPublicKey);
+
+  // 4. 签名
+  var timeStr=formatDateTime(new Date());
+  var map={time:timeStr, data:encryptedData, sm4Key:encryptedSm4Key};
+  map.sign=sm2Sign(map, frontendPrivateKey);
+
+  return map;
+}
+
+// ======================== UI 逻辑 ========================
+
+// Tab 切换
+document.querySelectorAll('.tab').forEach(function(t){
+  t.addEventListener('click', function(){
+    document.querySelectorAll('.tab').forEach(function(x){x.classList.remove('active')});
+    document.querySelectorAll('.tab-content').forEach(function(x){x.style.display='none'});
+    t.classList.add('active');
+    document.getElementById('tab-'+t.dataset.tab).style.display='';
+  });
+});
+
+// 折叠面板
+document.querySelectorAll('.collapsible-header').forEach(function(h){
+  h.addEventListener('click', function(){
+    h.classList.toggle('open');
+    h.nextElementSibling.classList.toggle('open');
+  });
+});
+
+// 解密
+function doDecrypt() {
+  var output=document.getElementById('decrypt-output');
+  output.className='result-area info';
+  output.textContent='解密中...';
+
+  try {
+    var raw=document.getElementById('decrypt-input').value.trim();
+    if(!raw) throw new Error('请输入加密响应 JSON');
+
+    var body=JSON.parse(raw);
+
+    var backendPub=document.getElementById('decrypt-backend-pub').value.trim();
+    var frontendPriv=document.getElementById('decrypt-frontend-priv').value.trim();
+    if(!backendPub) throw new Error('请输入后端公钥');
+    if(!frontendPriv) throw new Error('请输入前端私钥');
+
+    var result=decryptResponse(body, backendPub, frontendPriv);
+
+    output.className='result-area success';
+    output.textContent=JSON.stringify(result, null, 2);
+  } catch(e) {
+    output.className='result-area error';
+    output.textContent='解密失败: '+e.message;
+  }
+}
+
+// 加密
+function doEncrypt() {
+  var output=document.getElementById('encrypt-output');
+  output.className='result-area info';
+  output.textContent='加密中...';
+
+  try {
+    var raw=document.getElementById('encrypt-input').value.trim();
+    if(!raw) throw new Error('请输入业务数据 JSON');
+
+    var bizData=JSON.parse(raw);
+
+    var backendPub=document.getElementById('encrypt-backend-pub').value.trim();
+    var frontendPriv=document.getElementById('encrypt-frontend-priv').value.trim();
+    if(!backendPub) throw new Error('请输入后端公钥');
+    if(!frontendPriv) throw new Error('请输入前端私钥（用于签名）');
+
+    var result=encryptRequest(bizData, backendPub, frontendPriv);
+
+    output.className='result-area success';
+    output.textContent=JSON.stringify(result, null, 2);
+  } catch(e) {
+    output.className='result-area error';
+    output.textContent='加密失败: '+e.message;
+  }
+}
+
+// SM4 加密
+function doSm4Encrypt() {
+  var key=document.getElementById('sm4-key-enc').value.trim();
+  var plain=document.getElementById('sm4-plain').value;
+  var out=document.getElementById('sm4-cipher-out');
+
+  try {
+    if(!key) throw new Error('请输入 SM4 密钥');
+    if(key.length!==32) throw new Error('SM4 密钥必须是 32 字符 hex');
+    if(!plain) throw new Error('请输入明文');
+    out.value=sm4Encrypt(key, plain);
+  } catch(e) {
+    out.value='加密失败: '+e.message;
+  }
+}
+
+// SM4 解密
+function doSm4Decrypt() {
+  var key=document.getElementById('sm4-key-dec').value.trim();
+  var cipher=document.getElementById('sm4-cipher-in').value.trim();
+  var out=document.getElementById('sm4-plain-out');
+
+  try {
+    if(!key) throw new Error('请输入 SM4 密钥');
+    if(key.length!==32) throw new Error('SM4 密钥必须是 32 字符 hex');
+    if(!cipher) throw new Error('请输入密文');
+    out.value=sm4Decrypt(key, cipher);
+  } catch(e) {
+    out.value='解密失败: '+e.message;
+  }
+}
+
+// 随机生成 SM4 密钥
+function generateSm4Key() {
+  document.getElementById('sm4-key-enc').value=sm4GenerateKey();
+}
+
+// 同步密钥
+function syncKeysToEncrypt() {
+  document.getElementById('encrypt-backend-pub').value=document.getElementById('decrypt-backend-pub').value;
+  document.getElementById('encrypt-frontend-priv').value=document.getElementById('decrypt-frontend-priv').value;
+}
+
+// JSON 格式化
+function prettyFormat(id) {
+  var el=document.getElementById(id);
+  try {
+    var obj=JSON.parse(el.value);
+    el.value=JSON.stringify(obj, null, 2);
+  } catch(e) {
+    alert('JSON 格式不正确: '+e.message);
+  }
+}
+
+// Cookie 操作
+function getCookie(name) {
+  var match=document.cookie.match(new RegExp('(^| )'+name+'=([^;]+)'));
+  return match?decodeURIComponent(match[2]):null;
+}
+
+function loadFromCookie() {
+  var bp=getCookie('sm2-backend-public-key');
+  var fp=getCookie('sm2-frontend-private-key');
+  if(bp) document.getElementById('decrypt-backend-pub').value=bp;
+  if(fp) document.getElementById('decrypt-frontend-priv').value=fp;
+  if(!bp&&!fp) alert('Cookie 中未找到 SM2 密钥。请先登录系统或手动输入。');
+}
+
+function saveToLocal() {
+  var bp=document.getElementById('decrypt-backend-pub').value.trim();
+  var fp=document.getElementById('decrypt-frontend-priv').value.trim();
+  if(bp) localStorage.setItem('sm2-debug-backend-pub', bp);
+  if(fp) localStorage.setItem('sm2-debug-frontend-priv', fp);
+  alert(bp||fp?'密钥已保存到 localStorage':'没有可保存的密钥');
+}
+
+function loadFromLocal() {
+  var bp=localStorage.getItem('sm2-debug-backend-pub');
+  var fp=localStorage.getItem('sm2-debug-frontend-priv');
+  if(bp) document.getElementById('decrypt-backend-pub').value=bp;
+  if(fp) document.getElementById('decrypt-frontend-priv').value=fp;
+  if(!bp&&!fp) alert('localStorage 中未找到已保存的密钥');
+}
+
+function clearKeys() {
+  document.getElementById('decrypt-backend-pub').value='';
+  document.getElementById('decrypt-frontend-priv').value='';
+  document.getElementById('encrypt-backend-pub').value='';
+  document.getElementById('encrypt-frontend-priv').value='';
+}
+
+function showCookieKeys() {
+  var bp=getCookie('sm2-backend-public-key')||'(无)';
+  var fp=getCookie('sm2-frontend-private-key')||'(无)';
+  var fpub=getCookie('sm2-frontend-public-key')||'(无)';
+  document.getElementById('cookie-keys-display').textContent=
+    'sm2-backend-public-key:\n'+bp+'\n\n'+
+    'sm2-frontend-private-key:\n'+fp+'\n\n'+
+    'sm2-frontend-public-key:\n'+fpub;
+  document.getElementById('cookie-keys-display').className='result-area info';
+}
+
+function copyOutput(id) {
+  var el=document.getElementById(id);
+  var text=el.textContent;
+  if(!text||text==='等待输入...') return;
+  navigator.clipboard.writeText(text).then(function(){alert('已复制到剪贴板')});
+}
+
+function copyExample(type) {
+  if(type==='decrypt') {
+    document.getElementById('decrypt-input').value=JSON.stringify({
+      "code": 200,
+      "time": "2025-07-24 14:30:01",
+      "data": "（此处粘贴 SM4 密文 hex）",
+      "sm4Key": "（此处粘贴 SM2 加密的 SM4 密钥 hex，04 开头）",
+      "sign": "（此处粘贴 SM2 DER 签名 hex）"
+    }, null, 2);
+  }
+}
+
+// 初始化时尝试从 localStorage 加载密钥
+(function init(){
+  loadFromLocalSilent();
+})();
+
+function loadFromLocalSilent() {
+  var bp=localStorage.getItem('sm2-debug-backend-pub');
+  var fp=localStorage.getItem('sm2-debug-frontend-priv');
+  if(bp) document.getElementById('decrypt-backend-pub').value=bp;
+  if(fp) document.getElementById('decrypt-frontend-priv').value=fp;
+}
+</script>
+</body>
+</html>
